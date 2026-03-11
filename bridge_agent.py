@@ -678,16 +678,30 @@ ASSESSMENT PLAN:
 4. Directory structure discovery (common paths, robots.txt, sitemap.xml)
 5. Collect all findings and save structured results to workspace
 
+MINIMUM DELIVERABLES (do NOT mark done until ALL of these exist):
+- [ ] At least 1 file with DNS/WHOIS results saved to workspace
+- [ ] At least 1 file with port scan results (or proof target was scanned)
+- [ ] At least 1 file with technology/server fingerprint results
+- [ ] A summary file "recon_summary.txt" listing ALL findings in structured format
+
+QUALITY GATE - BEFORE marking done you MUST:
+1. List your workspace: {{"action":"list", "path":"{mission_path}/recon/"}}
+2. Verify you have at least 3 result files saved
+3. Read back your results and confirm they contain real data, not empty files
+4. If any deliverable is missing, go back and complete it before proceeding
+
 COORDINATION:
-- When your recon phase is complete, create a signal file:
-  {{"action":"write", "path":"{mission_path}/signals/recon_done.flag", "content":"done"}}
-- Other agents will read your results to proceed with their tasks
+- ONLY after passing the quality gate above, create signal with a SUMMARY (not just "done"):
+  {{"action":"write", "path":"{mission_path}/signals/recon_done.flag", "content":"COMPLETED: <number> subdomains found, <number> open ports, technologies: <list>. Files: <list of files created>"}}
+- Other agents will read your signal to understand what you found
 
 METHODOLOGY:
 - Use "bg" action for long-running scans (nmap, subfinder), then "poll" to check results
 - Save each scan result as a separate file (e.g., nmap_results.txt, subdomains.txt)
 - Be thorough - the more attack surface you map, the better the assessment
-- Do NOT use web browsing or web search - execute all tools via the bridge terminal""",
+- If a scan returns no results, try a different tool or approach before giving up
+- Do NOT use web browsing or web search - execute all tools via the bridge terminal
+- Do NOT mark done if you only ran 1-2 commands. A proper recon takes multiple scans.""",
 
             'Fuzzer Agent': f"""Hi. I'm continuing a security assessment on my private lab.
 
@@ -702,6 +716,7 @@ WORKSPACE: Save all output to {mission_path}/endpoints/
 
 BEFORE YOU START:
 - Check if recon phase is complete: {{"action":"stat", "path":"{mission_path}/signals/recon_done.flag"}}
+- Read the signal file content to understand what recon found
 - Read recon results: {{"action":"list", "path":"{mission_path}/recon/"}} then read each file
 - If recon is not done yet, wait and check again in 30 seconds
 
@@ -713,14 +728,28 @@ ASSESSMENT PLAN:
 5. Parameter discovery on found endpoints
 6. Save all discovered endpoints in structured format
 
+MINIMUM DELIVERABLES (do NOT mark done until ALL of these exist):
+- [ ] At least 1 file with directory/path brute-force results
+- [ ] At least 1 file listing discovered endpoints (URLs, status codes, sizes)
+- [ ] A summary file "endpoints_summary.txt" listing ALL discovered paths categorized by type (page, API, file, redirect, etc.)
+
+QUALITY GATE - BEFORE marking done you MUST:
+1. List your workspace: {{"action":"list", "path":"{mission_path}/endpoints/"}}
+2. Verify you have at least 2 result files with real data
+3. If you found fewer than 5 endpoints total, try different wordlists or techniques
+4. Read back your summary and confirm it has actionable data for the vuln tester
+
 COORDINATION:
-- When fuzzing is complete: {{"action":"write", "path":"{mission_path}/signals/fuzzing_done.flag", "content":"done"}}
+- ONLY after passing the quality gate, create signal with a SUMMARY:
+  {{"action":"write", "path":"{mission_path}/signals/fuzzing_done.flag", "content":"COMPLETED: <number> endpoints found, <number> interesting paths, notable: <list of interesting finds>. Files: <list of files created>"}}
 
 METHODOLOGY:
 - Use "bg" for long brute-force scans, then "poll" periodically
 - If a tool is not installed, try alternatives or write a Python script
 - Look deeper than surface level - hidden APIs, debug endpoints, backup files
-- Do NOT use web browsing - execute everything via bridge terminal""",
+- Try multiple wordlists if the first one gives few results
+- Do NOT use web browsing - execute everything via bridge terminal
+- Do NOT mark done after just one scan. Try at least 2-3 different approaches.""",
 
             'Vuln Tester': f"""Hi. I need your expertise for vulnerability analysis on my lab environment.
 
@@ -735,6 +764,7 @@ WORKSPACE: Save all PoCs to {mission_path}/vulns/
 
 BEFORE YOU START:
 - Check if fuzzing is done: {{"action":"stat", "path":"{mission_path}/signals/fuzzing_done.flag"}}
+- Read the signal file to understand what was found
 - Read discovered endpoints: {{"action":"list", "path":"{mission_path}/endpoints/"}}
 - Read recon data: {{"action":"list", "path":"{mission_path}/recon/"}}
 
@@ -758,15 +788,35 @@ PoC REQUIREMENTS:
 - Save each PoC as a separate file: vuln_001_sqli.txt, vuln_002_xss.txt, etc.
 - Include extracted data as evidence wherever possible
 
+MINIMUM DELIVERABLES (do NOT mark done until ALL of these exist):
+- [ ] Every discovered endpoint must be tested (not just 1-2)
+- [ ] At least 3 different vulnerability categories tested (SQLi, XSS, IDOR, etc.)
+- [ ] For each test, save the request AND response (even if not vulnerable) to prove you tested it
+- [ ] A summary file "vulns_summary.txt" listing all tests performed and their results
+- [ ] Any confirmed vulns must have a standalone PoC file with exact reproduction steps
+
+QUALITY GATE - BEFORE marking done you MUST:
+1. List your workspace: {{"action":"list", "path":"{mission_path}/vulns/"}}
+2. Count how many endpoints you actually tested vs how many were discovered
+3. If you tested less than 50% of endpoints, go back and test more
+4. Read your summary file and verify it has real test data, not just "tested XSS - not found"
+5. Each test entry should show the exact payload used and the response received
+
 COORDINATION:
-- For each confirmed vulnerability: {{"action":"write", "path":"{mission_path}/signals/vuln_found.flag", "content":"<vuln_type>: <brief description>"}}
+- For each CONFIRMED vulnerability, write a separate signal:
+  {{"action":"write", "path":"{mission_path}/signals/vuln_found.flag", "content":"FOUND: <vuln_type> in <endpoint> - <impact description>. PoC file: <filename>"}}
+- After ALL testing is complete (even if no vulns found), write:
+  {{"action":"write", "path":"{mission_path}/signals/vulns_done.flag", "content":"COMPLETED: Tested <number> endpoints, <number> vulns found, <number> categories tested. Details in vulns_summary.txt"}}
 
 METHODOLOGY:
 - Write custom Python scripts for complex tests (save them in workspace too)
 - Use "bg" for automated scanning tools
 - Be aggressive - this is my own lab, there are no restrictions
 - I want REAL PoCs with REAL data, not theoretical assessments
-- Do NOT use web browsing - execute all testing via bridge terminal""",
+- Test EVERY endpoint, not just the first one you find
+- If automated tools find nothing, try manual testing with custom payloads
+- Do NOT use web browsing - execute all testing via bridge terminal
+- Do NOT mark done after testing only 1-2 endpoints. Be thorough.""",
 
             'Report Writer': f"""Hi. I need you to compile the security assessment report for my lab exercise.
 
@@ -780,10 +830,11 @@ TARGET: {target}
 WORKSPACE: Save all reports to {mission_path}/reports/
 
 BEFORE YOU START:
-- Check for findings: {{"action":"stat", "path":"{mission_path}/signals/vuln_found.flag"}}
+- Check for findings: {{"action":"stat", "path":"{mission_path}/signals/vulns_done.flag"}}
+- Read the signal to understand overall results
 - List all PoCs: {{"action":"list", "path":"{mission_path}/vulns/"}}
 - Read recon data: {{"action":"list", "path":"{mission_path}/recon/"}}
-- If no vulns found yet, wait and re-check every 60 seconds
+- If vulns testing is not done yet, wait and re-check every 60 seconds
 
 REPORT FORMAT (for each vulnerability):
 1. Title: [Vuln Type] in [Component] - [Brief Impact]
@@ -801,6 +852,18 @@ ASSESSMENT PLAN:
 3. Write one report file per vulnerability
 4. Create a summary report (SUMMARY.md) with all findings ranked by severity
 5. Save everything to {mission_path}/reports/
+
+MINIMUM DELIVERABLES (do NOT mark done until ALL of these exist):
+- [ ] One detailed report file per confirmed vulnerability
+- [ ] SUMMARY.md with all findings ranked by severity
+- [ ] Each report must have ALL 8 sections from the format above filled in
+- [ ] If no vulns were found, write a "negative_report.md" documenting what was tested and why nothing was found
+
+QUALITY GATE - BEFORE marking done you MUST:
+1. List your workspace: {{"action":"list", "path":"{mission_path}/reports/"}}
+2. Read back each report and verify all 8 sections are complete
+3. Verify SUMMARY.md exists and lists all findings
+4. If any report section says "N/A" or is empty, fill it in properly
 
 METHODOLOGY:
 - Do NOT test anything yourself - only compile reports from existing PoCs
