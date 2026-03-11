@@ -907,15 +907,40 @@ METHODOLOGY:
 <h1>&#127919; Mission: {target}</h1>
 <p class="sub"><span class="badge">ACTIVE</span> &bull; <a href="{url}/">&larr; Back to Bridge</a></p>
 
+<div class="card" style="border-left:4px solid #3fb950">
+  <h2>&#128640; Recommended Workflow</h2>
+  <p style="color:#8b949e">Agents have data dependencies &mdash; follow this order for best results:</p>
+
+  <div style="background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:1rem;margin:0.8rem 0">
+    <div style="margin-bottom:0.8rem">
+      <span style="background:#238636;color:#fff;border-radius:50%;padding:2px 8px;font-weight:bold;margin-right:8px">1</span>
+      <b style="color:#58a6ff">Recon Agent</b> &larr; jalankan <b>SENDIRI</b> dulu
+      <div style="margin-left:2rem;color:#8b949e;font-size:0.9em">Paste prompt ke 1 tab AI. Tunggu sampai dia bilang "COMPLETED: ..." di signal file.</div>
+    </div>
+    <div style="margin-left:1rem;color:#8b949e;margin-bottom:0.3rem">&darr; tunggu <code>recon_done.flag</code></div>
+    <div style="margin-bottom:0.8rem">
+      <span style="background:#1f6feb;color:#fff;border-radius:50%;padding:2px 8px;font-weight:bold;margin-right:8px">2</span>
+      <b style="color:#3fb950">Fuzzer Agent</b> &larr; jalankan setelah Recon selesai
+      <div style="margin-left:2rem;color:#8b949e;font-size:0.9em">Paste ke tab AI baru. Dia butuh data dari Recon.</div>
+    </div>
+    <div style="margin-left:1rem;color:#8b949e;margin-bottom:0.3rem">&darr; tunggu <code>fuzzing_done.flag</code></div>
+    <div style="margin-bottom:0.5rem">
+      <span style="background:#d29922;color:#fff;border-radius:50%;padding:2px 8px;font-weight:bold;margin-right:8px">3</span>
+      <b style="color:#d29922">Vuln Tester</b> + <b style="color:#f778ba">Report Writer</b> &larr; bisa <b>BARENGAN</b>
+      <div style="margin-left:2rem;color:#8b949e;font-size:0.9em">Paste ke 2 tab AI sekaligus. Reporter akan auto-wait sampai PoC tersedia.</div>
+    </div>
+  </div>
+
+  <p style="font-size:0.85em;color:#8b949e">
+    &#128161; <b>Tip:</b> JANGAN jalankan semua barengan dari awal &mdash; Fuzzer tanpa data Recon = hasil ngawur.
+    Signal files di <code>{mission_path}/signals/</code> mengatur koordinasi antar agent.
+  </p>
+</div>
+
 <div class="card">
-  <h2>&#128640; Quick Setup</h2>
-  <ol class="steps">
-    <li>Open <b>4 tabs</b> in your AI platform (z.ai, ChatGPT, etc.)</li>
-    <li>Copy each agent prompt below and paste into a separate tab</li>
-    <li>Each agent will work autonomously in its own workspace</li>
-    <li>Agents coordinate via signal files in <code>{mission_path}/signals/</code></li>
-  </ol>
-  <p>Workspace: <code>{mission_path}</code></p>
+  <h2>&#128736; Workspace</h2>
+  <p><code>{mission_path}</code></p>
+  <p style="font-size:0.85em;color:#8b949e">Subdirs: recon/ &bull; endpoints/ &bull; vulns/ &bull; reports/ &bull; signals/ &bull; loot/</p>
 </div>
 
 {cards_html}

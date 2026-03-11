@@ -253,15 +253,22 @@ def main():
             print(f"  {G}{BOLD}TUNNEL READY{RESET}")
             print(f"  {BOLD}URL:{RESET}  {C}{BOLD}{tunnel_url}{RESET}")
             print(f"  {DIM}{'=' * 44}{RESET}\n")
-            print(f"  Give this to your AI agent:")
+            print(f"  {BOLD}Next Steps:{RESET}")
+            print(f"  {W}1.{RESET} Open in browser:  {C}{tunnel_url}/{RESET}")
+            print(f"  {W}2.{RESET} Start a mission:  {C}{tunnel_url}/mission{RESET}")
+            print(f"     {DIM}(enter target domain → get copy-paste agent prompts){RESET}")
+            print(f"  {W}3.{RESET} Follow the workflow: Recon → Fuzzer → Vuln+Reporter")
+            print(f"\n  {DIM}Or give this to your AI agent:{RESET}")
             print(f"  {Y}curl -s {tunnel_url}/{RESET}\n")
         else:
             log("WARN ", "Could not establish tunnel. Bridge is still running locally.", Y)
-            print(f"\n  {BOLD}Local URL:{RESET} {C}http://localhost:{args.port}{RESET}\n")
+            print(f"\n  {BOLD}Local URL:{RESET} {C}http://localhost:{args.port}{RESET}")
+            print(f"  {BOLD}Mission:{RESET}   {C}http://localhost:{args.port}/mission{RESET}\n")
     else:
         if not args.no_tunnel:
             log("INFO ", "Running without tunnel (local only)", Y)
-        print(f"\n  {BOLD}Local URL:{RESET} {C}http://localhost:{args.port}{RESET}\n")
+        print(f"\n  {BOLD}Local URL:{RESET} {C}http://localhost:{args.port}{RESET}")
+        print(f"  {BOLD}Mission:{RESET}   {C}http://localhost:{args.port}/mission{RESET}\n")
 
     # --- Monitor ---
     print(f"  {DIM}Press Ctrl+C to stop everything{RESET}\n")
