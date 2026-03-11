@@ -547,15 +547,23 @@ curl -s -X POST {url}/ -H "Content-Type: application/json" \\
   -d '{{"action":"read","path":"README.md"}}'</pre>
 </div>
 
-<div class="card">
+<div class="card" style="border-left:4px solid #58a6ff">
   <h2>&#129302; Multi-Agent Mode</h2>
   <p>This bridge supports <b>multiple AI agents</b> working simultaneously. Add <code>agent_id</code> to your requests for tracking.</p>
+  
+  <div style="background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:1rem;margin:1rem 0">
+    <h3 style="margin-top:0">&#127919; Start a Mission</h3>
+    <form action="/mission" method="GET" style="display:flex;gap:10px">
+      <input type="text" name="target" placeholder="Target domain (e.g. example.com)" required style="flex:1;padding:8px;background:#161b22;color:#c9d1d9;border:1px solid #30363d;border-radius:4px;font-family:monospace">
+      <button type="submit" style="padding:8px 16px;background:#238636;color:white;border:none;border-radius:4px;cursor:pointer;font-weight:bold">Launch Dashboard</button>
+    </form>
+  </div>
+
   <p><b>Quick setup:</b></p>
   <ol>
-    <li>Create a mission: <code>{{"action":"mission","target":"example.com"}}</code></li>
-    <li>Open the mission dashboard: <a href="{url}/mission?target=example.com">{url}/mission?target=example.com</a></li>
+    <li>Enter your target above to open the mission dashboard</li>
     <li>Copy-paste the ready-made agent prompts into your AI tabs</li>
-    <li>Each agent works in its own workspace subdirectory</li>
+    <li>Each agent works in its own workspace subdirectory (recon, endpoints, vulns)</li>
   </ol>
   <p>Max concurrent background processes: <b>{MAX_CONCURRENT_BG}</b> (configurable via <code>--max-concurrent</code>)</p>
 </div>
@@ -600,19 +608,34 @@ curl -s -X POST {url}/ -H "Content-Type: application/json" \\
                 missions = [d for d in sorted(os.listdir(base)) if os.path.isdir(os.path.join(base, d))]
             mission_links = ''.join(f'<li><a href="{url}/mission?target={m}">{m}</a></li>' for m in missions)
             if not mission_links:
-                mission_links = '<li>No missions yet. Add <code>?target=example.com</code> to create one.</li>'
+                mission_links = '<p style="color:#8b949e">No missions yet. Create one below.</p>'
             self._send_html(f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>Mission Control</title>
 <style>body{{font-family:monospace;background:#0d1117;color:#c9d1d9;padding:2rem}}
-a{{color:#58a6ff}}h1{{color:#58a6ff}}code{{color:#ff7b72}}
-.card{{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1.2rem;margin:1rem 0}}
+a{{color:#58a6ff;text-decoration:none}} a:hover{{text-decoration:underline}} h1{{color:#58a6ff}}code{{color:#ff7b72;background:#161b22;padding:2px 6px;border-radius:4px}}
+.card{{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1.5rem;margin:1rem 0;max-width:600px}}
+input[type="text"]{{width:100%;box-sizing:border-box;padding:10px;margin:10px 0;background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;font-family:monospace;font-size:1rem}}
+input[type="submit"]{{background:#238636;color:#ffffff;border:none;padding:10px 20px;border-radius:6px;cursor:pointer;font-weight:bold;font-size:1rem}}
+input[type="submit"]:hover{{background:#2ea043}}
+ul{{list-style-type:square;padding-left:1.5rem}}
 </style></head><body>
 <h1>&#127919; Mission Control</h1>
-<div class="card"><h2>Existing Missions</h2><ul>{mission_links}</ul></div>
-<div class="card"><h2>Create New Mission</h2>
-<p>Visit: <code>{url}/mission?target=YOUR_TARGET</code></p>
-<p>Example: <a href="{url}/mission?target=example.com">{url}/mission?target=example.com</a></p>
-</div></body></html>""")
+
+<div class="card">
+  <h2>&#10133; Create / Open Mission</h2>
+  <form action="/mission" method="GET">
+    <label for="target">Target Domain or Identifier:</label>
+    <input type="text" id="target" name="target" placeholder="e.g. example.com or labs_target_1" required>
+    <input type="submit" value="Start Mission">
+  </form>
+</div>
+
+<div class="card">
+  <h2>&#128193; Existing Missions</h2>
+  <ul>{mission_links}</ul>
+</div>
+
+</body></html>""")
             return
 
         # Create workspace if not exists
