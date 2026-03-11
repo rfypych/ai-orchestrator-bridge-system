@@ -343,7 +343,10 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
         try:
             body = json.dumps(data, ensure_ascii=False).encode('utf-8')
             Stats.inc(bytes_sent=len(body))
-            if compress and len(body) > 1024:
+            # Only gzip if client accepts it AND response is large enough
+            accept_enc = self.headers.get("Accept-Encoding", "") if hasattr(self, 'headers') else ""
+            client_accepts_gzip = "gzip" in accept_enc
+            if compress and client_accepts_gzip and len(body) > 1024:
                 buf = BytesIO()
                 with gzip.GzipFile(fileobj=buf, mode='wb') as gz:
                     gz.write(body)
