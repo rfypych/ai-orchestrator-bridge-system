@@ -1,56 +1,89 @@
-# 🌉 Remote Bridge System v4.0
+# 🌉 Remote Bridge System v5.0 — Multi-Agent Orchestration
 
-A powerful, lightweight, and stable system for remote command execution and filesystem management over HTTP. Specifically designed for AI agents (like Claude, GPT-4, Gemini) to interact with your local machine securely via Cloudflare Tunnels.
+A powerful remote terminal bridge designed for AI agents. Run multiple autonomous AI agents (e.g., from z.ai tabs) against a single bridge with concurrency control, mission workspaces, and smart polling.
 
-## ✨ New in v4.0
+## ✨ Features
 
-- **All-in-One Launcher** - Start both the agent and Cloudflare tunnel with a single command.
-- **Background Processes** - Run long-running tasks (like `npm run dev`) and poll for output.
-- **Enhanced Filesystem Ops** - Direct `read`/`write` (text), `mkdir`, `move`, `delete`, and `stat` (md5/size).
-- **Auto-Discovery** - Rich HTML landing page and JSON metadata for AI agents.
-- **Stability** - Automatic port fallback and protocol negotiation (`http2`/`h2mux`).
+- **Multi-Agent Support** — `agent_id` per request, color-coded terminal logs, concurrency limiter
+- **Background Processes** — Run heavy commands in background, poll with smart hints (`poll_after_seconds`)
+- **Mission System** — Auto-create structured workspaces per target with signal-based coordination
+- **13 Actions** — `exec`, `bg`, `poll`, `list`, `stat`, `read`, `write`, `mkdir`, `delete`, `move`, `upload`, `download`, `stats`, `mission`
+- **AI Auto-Discovery** — HTML landing page teaches AI how to use curl when it browses the URL
+- **Stability** — Port auto-fallback, gzip compression, session logging
 
 ## 🚀 Quick Start
 
-### 1. Requirements
-- Python 3.7+
-- `cloudflared` (optional, for remote access)
-
-### 2. Launch Everything
-The easiest way to start is using the new launcher:
+### Option 1: All-in-One Launcher
 ```bash
-python launch.py --api-key your-secret-key
+python launch.py --api-key your-secret
 ```
-This will:
-1. Start the **Bridge Agent** on port 8765 (or next available).
-2. Start a **Cloudflare Tunnel** automatically.
-3. Provide a **URL** you can give to your AI agent.
+Starts bridge + Cloudflare tunnel automatically.
 
-### 3. Usage for AI Agents
-Just give your AI agent the Tunnel URL. If they open it in a browser, they'll see a complete guide on how to use `curl` to interact with your machine.
+### Option 2: Manual
+```bash
+python bridge_agent.py --port 8765 --max-concurrent 2
+cloudflared tunnel --url http://localhost:8765 --protocol http2
+```
 
----
+## 🤖 Multi-Agent Workflow
 
-## 🛠️ Available Actions
+### 1. Create a Mission
+```json
+{"action": "mission", "target": "example.com"}
+```
+Creates: `missions/example.com/{recon,endpoints,vulns,reports,signals,loot}/`
 
-| Action | Description |
-|---|---|
-| `exec` | Run synchronous shell commands. |
-| `bg` | Run background processes (returns `pid`). |
-| `poll` | Check output/status of background processes. |
-| `list` | List directory contents (structured JSON). |
-| `stat` | Get file metadata (size, md5, mtime). |
-| `read` | Read text files directly. |
-| `write` | Write/Append to text files. |
-| `upload` | Binary file upload (Base64). |
-| `download` | Binary file download (Chunked/Base64). |
+### 2. Each AI Agent Uses `agent_id`
+```json
+{"action": "exec", "command": "nmap -sV target.com", "agent_id": "recon"}
+{"action": "bg", "command": "ffuf -u http://...", "agent_id": "fuzzer"}
+```
 
----
+### 3. Terminal Output (Color-Coded)
+```
+[10:08:01] [recon]   EXEC  nmap -sV target.com
+[10:08:03] [fuzzer]  BG    ffuf -u http://...
+[10:08:05] [vulns]   READ  /missions/example.com/endpoints/api.json
+```
+
+### 4. Smart Poll Hints
+```json
+// bg response
+{"job_id": "a1b2c3d4", "status": "queued", "poll_after_seconds": 10,
+ "hint": "2 processes running, 1 queued. Poll again in 10-30 seconds."}
+
+// poll response (still running)
+{"status": "running", "elapsed": 15.2, "poll_after_seconds": 10,
+ "hint": "Command is running. Poll again in 10-20 seconds."}
+
+// poll response (done)
+{"status": "done", "poll_after_seconds": 0, "stdout": "...results..."}
+```
+
+### 5. Signal Coordination
+Agents coordinate via filesystem flags:
+```json
+// Recon agent: "I'm done"
+{"action": "write", "path": "missions/example.com/signals/recon_done.flag", "content": "done"}
+
+// Fuzzer agent: "Is recon done?"
+{"action": "stat", "path": "missions/example.com/signals/recon_done.flag"}
+```
+
+## 🔧 CLI Options
+
+| Flag | Default | Description |
+|---|---|---|
+| `--port, -p` | 8765 | Server port |
+| `--api-key, -k` | None | API key for auth |
+| `--max-concurrent, -c` | 2 | Max simultaneous bg processes |
+| `--missions-dir` | `./missions` | Mission workspace directory |
+| `--log, -l` | None | Session log file (.jsonl) |
+| `--no-color` | false | Disable colored output |
 
 ## 🔒 Security
-- **API Key** - Use `--api-key` to protect your bridge.
-- **HTTPS** - Cloudflare Tunnels provide end-to-end encryption.
-- **ReadOnly** (Coming soon) - Option to restrict to non-destructive actions.
+- **API Key** — Use `--api-key` to protect your bridge
+- **HTTPS** — Cloudflare Tunnels provide end-to-end encryption
 
 ## 📜 License
 MIT

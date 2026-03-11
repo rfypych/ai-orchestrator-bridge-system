@@ -459,7 +459,7 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
 </style>
 </head>
 <body>
-<h1>&#127757; Bridge Agent <span style="color:#3fb950">v4.0</span></h1>
+<h1>&#127757; Bridge Agent <span style="color:#3fb950">v5.0</span></h1>
 <p class="sub">Remote Terminal Bridge &bull; <span class="badge">ONLINE</span></p>
 
 <div class="card">

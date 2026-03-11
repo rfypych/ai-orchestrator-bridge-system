@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Bridge Launcher - All-in-One Startup Script
+Bridge Launcher v5.0 - All-in-One Startup Script
 Starts bridge_agent.py + cloudflared tunnel with auto-fallbacks.
 
 Usage:
   python launch.py
-  python launch.py --port 8765 --api-key mykey --protocol http2
+  python launch.py --port 8765 --api-key mykey --max-concurrent 3
 """
 
 import subprocess
@@ -40,7 +40,7 @@ def log(tag, msg, color=W):
     print(f"  {DIM}[{ts}]{RESET} {color}{tag:<6}{RESET} {msg}")
 
 def banner():
-    print(f"\n  {C}{BOLD}BRIDGE LAUNCHER{RESET} {DIM}v1.0{RESET}")
+    print(f"\n  {C}{BOLD}BRIDGE LAUNCHER{RESET} {DIM}v5.0{RESET}")
     print(f"  {DIM}{'=' * 44}{RESET}\n")
 
 def cleanup(sig=None, frame=None):
@@ -107,7 +107,7 @@ def check_cloudflared():
     return None
 
 # ==================== BRIDGE AGENT ====================
-def start_bridge(port, api_key, no_color, log_file):
+def start_bridge(port, api_key, no_color, log_file, max_concurrent):
     cmd = [sys.executable, "-u", BRIDGE_SCRIPT, "--port", str(port)]
     if api_key:
         cmd += ["--api-key", api_key]
@@ -115,8 +115,10 @@ def start_bridge(port, api_key, no_color, log_file):
         cmd += ["--no-color"]
     if log_file:
         cmd += ["--log", log_file]
+    if max_concurrent:
+        cmd += ["--max-concurrent", str(max_concurrent)]
 
-    log("START", f"bridge_agent.py (port {port})", B)
+    log("START", f"bridge_agent.py (port {port}, max_concurrent={max_concurrent or 2})", B)
     proc = subprocess.Popen(cmd, stdout=sys.stdout, stderr=sys.stderr)
     _procs.append(proc)
     time.sleep(1.5)
@@ -209,11 +211,13 @@ def main():
     signal.signal(signal.SIGINT, cleanup)
     signal.signal(signal.SIGTERM, cleanup)
 
-    parser = argparse.ArgumentParser(description="Bridge Launcher - starts bridge_agent + cloudflared")
+    parser = argparse.ArgumentParser(description="Bridge Launcher v5.0 - starts bridge_agent + cloudflared")
     parser.add_argument("--port", "-p", type=int, default=8765)
     parser.add_argument("--api-key", "-k", type=str, default=None)
+    parser.add_argument("--max-concurrent", "-c", type=int, default=None,
+                        help="Max concurrent bg processes (default: 2)")
     parser.add_argument("--protocol", type=str, default=None,
-                        help="Force cloudflared protocol (http2 or h2mux). Default: auto-detect")
+                        help="Force cloudflared protocol (http2 or h2mux)")
     parser.add_argument("--log", "-l", type=str, default=None, help="Session log file")
     parser.add_argument("--no-color", action="store_true")
     parser.add_argument("--no-tunnel", action="store_true", help="Start bridge only, no cloudflared")
@@ -229,7 +233,7 @@ def main():
     print()
 
     # --- Start bridge ---
-    bridge_proc = start_bridge(args.port, args.api_key, args.no_color, args.log)
+    bridge_proc = start_bridge(args.port, args.api_key, args.no_color, args.log, args.max_concurrent)
 
     # --- Start cloudflared ---
     cf_proc = None
