@@ -380,14 +380,18 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
         if BridgeHandler._detected_shells is None:
             BridgeHandler._detected_shells = detect_shells()
 
+        parsed = urlparse(self.path)
+        path = parsed.path.rstrip("/") or "/"
+        params = parse_qs(parsed.query)
         accept = self.headers.get("Accept", "")
         is_browser = "text/html" in accept
 
-        if is_browser:
-            # Return HTML page with full instructions for AI/browser
+        if path == "/mission":
+            target = params.get("target", [""])[0]
+            self._send_mission_dashboard(target)
+        elif path == "/" and is_browser:
             self._send_html_landing()
-        else:
-            # Return JSON for curl/API clients
+        elif path == "/":
             print(f"  {Color.TIME}[{ts()}]{Color.RESET} {Color.SUCCESS}GET{Color.RESET}  {Color.dim('/ - Health Check (JSON)')}")
             self.send_json(200, {
                 "type": "remote-terminal-bridge",
@@ -529,6 +533,19 @@ curl -s -X POST {url}/ -H "Content-Type: application/json" \\
   -d '{{"action":"read","path":"README.md"}}'</pre>
 </div>
 
+<div class="card">
+  <h2>&#129302; Multi-Agent Mode</h2>
+  <p>This bridge supports <b>multiple AI agents</b> working simultaneously. Add <code>agent_id</code> to your requests for tracking.</p>
+  <p><b>Quick setup:</b></p>
+  <ol>
+    <li>Create a mission: <code>{{"action":"mission","target":"example.com"}}</code></li>
+    <li>Open the mission dashboard: <a href="{url}/mission?target=example.com">{url}/mission?target=example.com</a></li>
+    <li>Copy-paste the ready-made agent prompts into your AI tabs</li>
+    <li>Each agent works in its own workspace subdirectory</li>
+  </ol>
+  <p>Max concurrent background processes: <b>{MAX_CONCURRENT_BG}</b> (configurable via <code>--max-concurrent</code>)</p>
+</div>
+
 </body>
 </html>"""
 
@@ -540,6 +557,219 @@ curl -s -X POST {url}/ -H "Content-Type: application/json" \\
         self.send_header("Connection", "close")
         self.end_headers()
         self.wfile.write(body)
+
+    def _send_html(self, html_content):
+        body = html_content.encode('utf-8')
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", len(body))
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.wfile.write(body)
+
+    # ---------- MISSION DASHBOARD ----------
+    def _send_mission_dashboard(self, target):
+        """Serve mission dashboard with copy-paste agent prompts."""
+        url = f"http://{self.headers.get('Host', 'localhost')}"
+        auth_header = f' -H "Authorization: Bearer YOUR_KEY"' if API_KEY else ''
+        base = MISSIONS_DIR or os.path.join(os.getcwd(), 'missions')
+        print(f"  {Color.TIME}[{ts()}]{Color.RESET} {Color.INFO}GET{Color.RESET}  {Color.dim(f'/mission?target={target} - Dashboard')}")
+
+        if not target:
+            # List existing missions with links
+            missions = []
+            if os.path.exists(base):
+                missions = [d for d in sorted(os.listdir(base)) if os.path.isdir(os.path.join(base, d))]
+            mission_links = ''.join(f'<li><a href="{url}/mission?target={m}">{m}</a></li>' for m in missions)
+            if not mission_links:
+                mission_links = '<li>No missions yet. Add <code>?target=example.com</code> to create one.</li>'
+            self._send_html(f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Mission Control</title>
+<style>body{{font-family:monospace;background:#0d1117;color:#c9d1d9;padding:2rem}}
+a{{color:#58a6ff}}h1{{color:#58a6ff}}code{{color:#ff7b72}}
+.card{{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1.2rem;margin:1rem 0}}
+</style></head><body>
+<h1>&#127919; Mission Control</h1>
+<div class="card"><h2>Existing Missions</h2><ul>{mission_links}</ul></div>
+<div class="card"><h2>Create New Mission</h2>
+<p>Visit: <code>{url}/mission?target=YOUR_TARGET</code></p>
+<p>Example: <a href="{url}/mission?target=example.com">{url}/mission?target=example.com</a></p>
+</div></body></html>""")
+            return
+
+        # Create workspace if not exists
+        safe_target = re.sub(r'[^a-zA-Z0-9._-]', '_', target)
+        mission_path = os.path.join(base, safe_target)
+        subdirs = ['recon', 'endpoints', 'vulns', 'reports', 'signals', 'loot']
+        for d in subdirs:
+            os.makedirs(os.path.join(mission_path, d), exist_ok=True)
+
+        # Build agent prompts with URL and paths baked in
+        prompts = {
+            'Recon Agent': f"""You are a Reconnaissance specialist. You have access to a remote terminal bridge.
+
+BRIDGE SETUP:
+  URL: {url}
+  Method: POST JSON to {url}/
+  Run commands: {{"action":"exec", "command":"...", "agent_id":"recon"}}
+  Background:   {{"action":"bg", "command":"...", "agent_id":"recon"}}
+  Poll result:  {{"action":"poll", "job_id":"<id>"}}
+  Read file:    {{"action":"read", "path":"..."}}
+  Write file:   {{"action":"write", "path":"...", "content":"..."}}
+
+TARGET: {target}
+WORKSPACE: {mission_path}/recon/
+
+YOUR TASKS:
+1. Subdomain enumeration (subfinder, amass, or manual DNS)
+2. Port scanning (nmap)
+3. Technology detection (httpx, whatweb)
+4. Save all results to {mission_path}/recon/
+5. When done, create signal: {{"action":"write", "path":"{mission_path}/signals/recon_done.flag", "content":"done"}}
+
+IMPORTANT: Use "bg" for long-running scans, then "poll" to check results. Do NOT use web search or browse URLs — use curl via the bridge.""",
+
+            'Fuzzer Agent': f"""You are a Fuzzer & Directory Brute-Forcer. You have access to a remote terminal bridge.
+
+BRIDGE SETUP:
+  URL: {url}
+  Method: POST JSON to {url}/
+  Run commands: {{"action":"exec", "command":"...", "agent_id":"fuzzer"}}
+  Background:   {{"action":"bg", "command":"...", "agent_id":"fuzzer"}}
+  Poll result:  {{"action":"poll", "job_id":"<id>"}}
+  Read file:    {{"action":"read", "path":"..."}}
+  Write file:   {{"action":"write", "path":"...", "content":"..."}}
+
+TARGET: {target}
+WORKSPACE: {mission_path}/endpoints/
+
+BEFORE STARTING:
+- Check if recon is done: {{"action":"stat", "path":"{mission_path}/signals/recon_done.flag"}}
+- Read recon results: {{"action":"read", "path":"{mission_path}/recon/<filename>"}}
+
+YOUR TASKS:
+1. Read recon results from {mission_path}/recon/
+2. Directory fuzzing (ffuf, gobuster, or dirsearch)
+3. API endpoint discovery
+4. JavaScript file analysis
+5. Save all found endpoints to {mission_path}/endpoints/
+6. When done: {{"action":"write", "path":"{mission_path}/signals/fuzzing_done.flag", "content":"done"}}
+
+IMPORTANT: Use "bg" for long-running scans. Do NOT use web search or browse URLs.""",
+
+            'Vuln Tester': f"""You are a Vulnerability Analyst. You have access to a remote terminal bridge.
+
+BRIDGE SETUP:
+  URL: {url}
+  Method: POST JSON to {url}/
+  Run commands: {{"action":"exec", "command":"...", "agent_id":"vulns"}}
+  Background:   {{"action":"bg", "command":"...", "agent_id":"vulns"}}
+  Poll result:  {{"action":"poll", "job_id":"<id>"}}
+  Read file:    {{"action":"read", "path":"..."}}
+  Write file:   {{"action":"write", "path":"...", "content":"..."}}
+
+TARGET: {target}
+WORKSPACE: {mission_path}/vulns/
+
+BEFORE STARTING:
+- Check if fuzzing is done: {{"action":"stat", "path":"{mission_path}/signals/fuzzing_done.flag"}}
+- Read endpoints: {{"action":"list", "path":"{mission_path}/endpoints/"}}
+
+YOUR TASKS:
+1. Read discovered endpoints from {mission_path}/endpoints/
+2. Test for IDOR, SSRF, XSS, SQLi, auth bypass
+3. Write custom Python test scripts as needed
+4. For each finding, write a PoC to {mission_path}/vulns/
+5. When a vuln is confirmed: {{"action":"write", "path":"{mission_path}/signals/vuln_found.flag", "content":"<vuln_type>"}}
+
+IMPORTANT: Use "bg" for long scans. Write Python scripts for complex tests. Do NOT use web search.""",
+
+            'Report Writer': f"""You are a Bug Bounty Report Writer. You have access to a remote terminal bridge.
+
+BRIDGE SETUP:
+  URL: {url}
+  Method: POST JSON to {url}/
+  Read file:    {{"action":"read", "path":"..."}}
+  Write file:   {{"action":"write", "path":"...", "content":"..."}}
+  List files:   {{"action":"list", "path":"..."}}
+
+TARGET: {target}
+WORKSPACE: {mission_path}/reports/
+
+BEFORE STARTING:
+- Check for findings: {{"action":"stat", "path":"{mission_path}/signals/vuln_found.flag"}}
+- Read vulns: {{"action":"list", "path":"{mission_path}/vulns/"}}
+
+YOUR TASKS:
+1. Monitor {mission_path}/signals/ for vuln_found.flag
+2. Read all PoCs from {mission_path}/vulns/
+3. Write professional HackerOne-format reports
+4. Include: title, severity, description, steps to reproduce, impact, remediation
+5. Save reports to {mission_path}/reports/
+
+IMPORTANT: Do NOT use web search. Read files using the bridge."""
+        }
+
+        # Build HTML cards for each agent prompt
+        cards_html = ''
+        colors = ['#58a6ff', '#3fb950', '#d29922', '#f778ba']
+        icons = ['&#128269;', '&#128270;', '&#128375;', '&#128221;']
+        for i, (name, prompt) in enumerate(prompts.items()):
+            escaped_prompt = prompt.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            # Use a unique id for each textarea
+            tid = f'prompt_{i}'
+            color = colors[i % len(colors)]
+            icon = icons[i % len(icons)]
+            cards_html += f"""
+<div class="card">
+  <h2 style="color:{color}">{icon} {name}</h2>
+  <textarea id="{tid}" readonly rows="8" style="width:100%;background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:0.8rem;font-family:monospace;font-size:0.85rem;resize:vertical">{escaped_prompt}</textarea>
+  <button onclick="navigator.clipboard.writeText(document.getElementById('{tid}').value).then(()=>this.textContent='Copied!')" style="margin-top:0.5rem;padding:6px 16px;background:{color};color:#0d1117;border:none;border-radius:4px;cursor:pointer;font-weight:bold">&#128203; Copy Prompt</button>
+</div>"""
+
+        self._send_html(f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Mission: {target}</title>
+<style>
+  body {{font-family:monospace;background:#0d1117;color:#c9d1d9;margin:0;padding:2rem}}
+  h1 {{color:#58a6ff;margin-bottom:0}}
+  .sub {{color:#8b949e;margin-bottom:1.5rem}}
+  .card {{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1.2rem 1.5rem;margin-bottom:1.2rem}}
+  .card h2 {{margin:0 0 0.8rem 0;font-size:1rem}}
+  .badge {{display:inline-block;background:#238636;color:#fff;border-radius:4px;padding:2px 8px;font-size:0.8rem}}
+  a {{color:#58a6ff}}
+  code {{color:#ff7b72}}
+  .steps {{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:1rem;margin:0.5rem 0}}
+  .steps li {{margin:0.3rem 0}}
+</style></head><body>
+<h1>&#127919; Mission: {target}</h1>
+<p class="sub"><span class="badge">ACTIVE</span> &bull; <a href="{url}/">&larr; Back to Bridge</a></p>
+
+<div class="card">
+  <h2>&#128640; Quick Setup</h2>
+  <ol class="steps">
+    <li>Open <b>4 tabs</b> in your AI platform (z.ai, ChatGPT, etc.)</li>
+    <li>Copy each agent prompt below and paste into a separate tab</li>
+    <li>Each agent will work autonomously in its own workspace</li>
+    <li>Agents coordinate via signal files in <code>{mission_path}/signals/</code></li>
+  </ol>
+  <p>Workspace: <code>{mission_path}</code></p>
+</div>
+
+{cards_html}
+
+<div class="card">
+  <h2>&#128206; Workspace Structure</h2>
+  <pre style="background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:1rem;color:#e6edf3">{mission_path}/
+  recon/        ← Agent 1: subdomain, port scan results
+  endpoints/    ← Agent 2: discovered URLs, APIs
+  vulns/        ← Agent 3: vulnerability PoCs
+  reports/      ← Agent 4: final bug bounty reports
+  signals/      ← Coordination flags between agents
+  loot/         ← Additional findings</pre>
+</div>
+
+</body></html>""")
 
     # ---------- POST ----------
     def do_POST(self):
