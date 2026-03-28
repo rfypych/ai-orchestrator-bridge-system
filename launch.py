@@ -24,7 +24,7 @@ BRIDGE_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bridge
 CLOUDFLARED_PROTOCOLS = ["http2", "h2mux"]  # fallback order
 CLOUDFLARED_NAMES = ["cloudflared", "cloudflared.exe"]
 CLOUDFLARED_INSTALL_HINTS = {
-    "Linux":   "sudo apt install cloudflared  OR  brew install cloudflared",
+    "Linux":   "curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -o cf.deb && sudo dpkg -i cf.deb",
     "Darwin":  "brew install cloudflared",
     "Windows": "winget install Cloudflare.cloudflared  OR  choco install cloudflared",
 }
